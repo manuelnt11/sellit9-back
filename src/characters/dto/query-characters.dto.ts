@@ -23,5 +23,5 @@ export class QueryCharactersDto {
   gender?: CharacterGender;
 
   @ApiPropertyOptional()
-  page?: number;
+  page = 1;
 }

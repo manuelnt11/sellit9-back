@@ -8,8 +8,6 @@ import { QueryCharactersDto } from './dto/query-characters.dto';
 import { UpdateCharacterDto } from './dto/update-character.dto';
 
 const CHARACTERS_PER_PAGE = 20;
-const MAX_RNM_PAGE = 42;
-const RNM_COUNT = 826;
 
 @Injectable()
 export class CharactersService {
@@ -46,54 +44,85 @@ export class CharactersService {
   }
 
   async query(filter: QueryCharactersDto) {
-    const localCount = await this.charactersCollection.count().get();
-    const localTotalCount = RNM_COUNT + localCount.data().count;
+    const query = this.buildQuery(filter);
+    const localCount = (await query.count().get()).data().count;
+    const rnmFirstPage = await this.rnmClientService.queryCharacters({
+      ...filter,
+      page: 1,
+    });
+    const rnmCount = rnmFirstPage.info.count;
+    const totalCount = localCount + rnmCount;
+    const maxPage = Math.ceil(totalCount / CHARACTERS_PER_PAGE);
+    const maxLocalPage = Math.ceil(localCount / CHARACTERS_PER_PAGE);
     const localPage: RnmPage = {
       info: {
-        count: localTotalCount,
-        pages: Math.ceil(localTotalCount / CHARACTERS_PER_PAGE),
+        count: totalCount,
+        pages: Math.ceil(totalCount / CHARACTERS_PER_PAGE),
         next: '',
         prev: '',
       },
       results: [],
     };
-    const { page, ...remFilter } = filter;
-    if ((page || 0) < localPage.info.pages) {
-      const nextUrl = new URL('/api/characters', process.env.BASE_URL);
-      nextUrl.searchParams.append('page', (+(page || 0) + 1).toString());
-      Object.entries(remFilter).forEach(([key, value]) => {
-        nextUrl.searchParams.append(key, value.toString());
-      });
-      localPage.info.next = nextUrl.toString();
+    if (filter.page > maxPage) {
+      return localPage;
     }
-    if ((page || 0) > 1) {
-      const prevUrl = new URL('/api/characters', process.env.BASE_URL);
-      prevUrl.searchParams.append('page', (+(page || 0) - 1).toString());
-      Object.entries(remFilter).forEach(([key, value]) => {
-        prevUrl.searchParams.append(key, value.toString());
-      });
-      localPage.info.prev = prevUrl.toString();
-    }
-    if (page > MAX_RNM_PAGE) {
-      const offset = CHARACTERS_PER_PAGE * (page - 1) - RNM_COUNT;
-      this.logger.log(`Offset: ${offset}`);
-      const gapCharacters = await this.charactersCollection
-        .offset(offset)
+    this.buildPrevNextLinks(filter, localPage);
+    if (filter.page > maxLocalPage) {
+      const drift = localCount - (maxLocalPage - 1) * CHARACTERS_PER_PAGE;
+      if (drift === CHARACTERS_PER_PAGE) {
+        const rnmPage = await this.rnmClientService.queryCharacters({
+          ...filter,
+          page: filter.page - maxLocalPage,
+        });
+        localPage.results.push(
+          ...rnmPage.results.map((character) => ({
+            ...character,
+            owner: 'api',
+          })),
+        );
+      } else {
+        const rnmPageValue = filter.page - maxLocalPage;
+        const rnmPage1 = await this.rnmClientService.queryCharacters({
+          ...filter,
+          page: rnmPageValue,
+        });
+        const rnmPage2 = await this.rnmClientService.queryCharacters({
+          ...filter,
+          page: rnmPageValue + 1,
+        });
+        localPage.results.push(
+          ...rnmPage1.results
+            .slice(drift, CHARACTERS_PER_PAGE)
+            .map((character) => ({
+              ...character,
+              owner: 'api',
+            })),
+        );
+        localPage.results.push(
+          ...rnmPage2.results.slice(0, drift).map((character) => ({
+            ...character,
+            owner: 'api',
+          })),
+        );
+      }
+    } else {
+      const localCharacters = await this.charactersCollection
+        .offset((filter.page - 1) * CHARACTERS_PER_PAGE)
         .limit(CHARACTERS_PER_PAGE)
         .get();
-      localPage.results.push(...gapCharacters.docs.map((doc) => doc.data()));
-    } else {
-      const rnmPage = await this.rnmClientService.queryCharacters(filter);
-      localPage.results.push(
-        ...rnmPage.results.map((caracter) => ({
-          ...caracter,
-          owner: 'api',
-        })),
-      );
-      if (rnmPage.info.pages == page) {
-        const gap = CHARACTERS_PER_PAGE - rnmPage.results.length;
-        const gapCharacters = await this.charactersCollection.limit(gap).get();
-        localPage.results.push(...gapCharacters.docs.map((doc) => doc.data()));
+      localPage.results.push(...localCharacters.docs.map((doc) => doc.data()));
+      const drift = localCount - (maxLocalPage - 1) * CHARACTERS_PER_PAGE;
+      if (filter.page == maxLocalPage && drift !== CHARACTERS_PER_PAGE) {
+        const rnmPage = await this.rnmClientService.queryCharacters({
+          ...filter,
+          page: 1,
+        });
+        localPage.results.push(
+          ...rnmPage.results.slice(0, drift).map((character) => ({
+            ...character,
+            owner: 'api',
+          })),
+        );
       }
     }
     return localPage;
@@ -113,5 +142,42 @@ export class CharactersService {
       throw new Error("It's not a custom character");
     }
     return this.charactersCollection.doc(id.toString()).delete();
+  }
+
+  private buildQuery(filter: QueryCharactersDto) {
+    let query = this.charactersCollection.orderBy('id');
+    if (filter.name) {
+      query = query.where('name', '==', filter.name);
+    }
+    if (filter.status) {
+      query = query.where('status', '==', filter.status);
+    }
+    if (filter.species) {
+      query = query.where('species', '==', filter.species);
+    }
+    if (filter.type) {
+      query = query.where('type', '==', filter.type);
+    }
+    return query;
+  }
+
+  private buildPrevNextLinks(filter: QueryCharactersDto, localPage: RnmPage) {
+    const { page, ...remFilter } = filter;
+    if ((page || 0) < localPage.info.pages) {
+      const nextUrl = new URL('/api/characters', process.env.BASE_URL);
+      nextUrl.searchParams.append('page', (+(page || 0) + 1).toString());
+      Object.entries(remFilter).forEach(([key, value]) => {
+        nextUrl.searchParams.append(key, value.toString());
+      });
+      localPage.info.next = nextUrl.toString();
+    }
+    if ((page || 0) > 1) {
+      const prevUrl = new URL('/api/characters', process.env.BASE_URL);
+      prevUrl.searchParams.append('page', (+(page || 0) - 1).toString());
+      Object.entries(remFilter).forEach(([key, value]) => {
+        prevUrl.searchParams.append(key, value.toString());
+      });
+      localPage.info.prev = prevUrl.toString();
+    }
   }
 }
