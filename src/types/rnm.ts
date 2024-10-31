@@ -44,11 +44,3 @@ export interface RnmPageInfo {
   next: string;
   prev: string;
 }
-
-export interface RnmFilter {
-  name: string;
-  status: CharacterStatus;
-  species: string;
-  type: string;
-  gender: CharacterGender;
-}
