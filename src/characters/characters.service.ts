@@ -118,10 +118,12 @@ export class CharactersService {
           page: 1,
         });
         localPage.results.push(
-          ...rnmPage.results.slice(0, drift).map((character) => ({
-            ...character,
-            owner: 'api',
-          })),
+          ...rnmPage.results
+            .slice(0, CHARACTERS_PER_PAGE - drift)
+            .map((character) => ({
+              ...character,
+              owner: 'api',
+            })),
         );
       }
     }
