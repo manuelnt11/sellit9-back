@@ -22,8 +22,11 @@ export class CharactersService {
 
   async create(createCharacterDto: CreateCharacterDto) {
     try {
-      const count = await this.charactersCollection.count().get();
-      const id = count.data().count + 1000;
+      const last = await this.charactersCollection
+        .orderBy('id', 'desc')
+        .limit(1)
+        .get();
+      const id = last.docs[0] ? +last.docs[0].id + 1 : 1000;
       this.logger.log(`Creating character with id: ${id}`);
       const newCharacter = {
         id,
