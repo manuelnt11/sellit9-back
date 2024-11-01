@@ -35,7 +35,7 @@ export class CharactersController {
     return this.charactersService.findOne(+id);
   }
 
-  @Patch(':id')
+  @Patch()
   update(@Body() updateCharacterDto: UpdateCharacterDto) {
     return this.charactersService.update(updateCharacterDto);
   }
