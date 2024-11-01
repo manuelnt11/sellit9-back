@@ -18,18 +18,18 @@ export interface CharacterLocation {
   url: string;
 }
 
-export type CharacterStatus = 'alive' | 'dead' | 'unknown';
+export type CharacterStatus = 'Alive' | 'Dead' | 'unknown';
 export const CharacterStatusValues: CharacterStatus[] = [
-  'alive',
-  'dead',
+  'Alive',
+  'Dead',
   'unknown',
 ];
 
-export type CharacterGender = 'female' | 'male' | 'genderless' | 'unknown';
+export type CharacterGender = 'Female' | 'Male' | 'Genderless' | 'unknown';
 export const CharacterGenderValues: CharacterGender[] = [
-  'female',
-  'male',
-  'genderless',
+  'Female',
+  'Male',
+  'Genderless',
   'unknown',
 ];
 
