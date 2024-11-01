@@ -26,6 +26,7 @@ export class CharactersController {
 
   @Get()
   query(@Query() filter: QueryCharactersDto) {
+    filter.page = filter.page || 1;
     return this.charactersService.query(filter);
   }
 
