@@ -31,6 +31,7 @@ export class CharactersService {
       const newCharacter = {
         id,
         ...createCharacterDto,
+        created: new Date(),
         owner: 'undef', // TODO: get owner from request
       };
       this.logger.log(`New character: ${JSON.stringify(newCharacter)}`);

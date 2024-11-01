@@ -44,7 +44,4 @@ export class CreateCharacterDto {
 
   @ApiProperty()
   url: string;
-
-  @ApiProperty()
-  created: Date;
 }
